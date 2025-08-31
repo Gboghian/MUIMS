@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% block content %}
+{% if is_edit %}
+<h3>Edit Incident #{{ incident.id }}</h3>
+{% else %}
+<h3>Report New Incident</h3>
+{% endif %}
+<form method="post" class="row g-3">
+  {{ form.hidden_tag() }}
+
+  <div class="col-12">{{ form.title.label }} {{ form.title(class="form-control") }}</div>
+  <div class="col-12">{{ form.description.label }} {{ form.description(class="form-control", rows=4) }}</div>
+
+  <div class="row g-3">
+    <div class="col-md-6">
+      {{ form.customer_name.label }}
+      {{ form.customer_name(class="form-select", id="customer", required=true) }}
+      {% for e in form.customer_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="col-md-6">
+      {{ form.location.label }}
+      {{ form.location(class="form-select", id="location") }}
+      {% for e in form.location.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+
+    <div class="col-md-6">
+      {{ form.site_name.label }}
+      {{ form.site_name(class="form-select", id="site") }}
+      {% for e in form.site_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="col-md-6">
+      {{ form.machine_model.label }}
+      {{ form.machine_model(class="form-select", id="model") }}
+      {% for e in form.machine_model.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    {{ form.machine_serial.label }}
+    {{ form.machine_serial(class="form-select", id="serial") }}
+    {% for e in form.machine_serial.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-6">
+      {{ form.fault_code.label }}
+      {{ form.fault_code(class="form-select", id="fault_code") }}
+      {% for e in form.fault_code.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="col-md-6">
+      {{ form.fault.label }}
+      {{ form.fault(class="form-select", id="fault_desc") }}
+      {% for e in form.fault.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+  </div>
+
+  <div class="col-md-6">{{ form.start_time.label }} {{ form.start_time(class="form-control", type="datetime-local") }}</div>
+  <div class="col-md-6">{{ form.end_time.label }} {{ form.end_time(class="form-control", type="datetime-local") }}</div>
+
+  <div class="col-12 form-check">{{ form.preventive_maintenance(class="form-check-input") }} {{ form.preventive_maintenance.label(class="form-check-label") }}</div>
+
+  <div class="col-md-4">{{ form.category.label }} {{ form.category(class="form-select") }}</div>
+  <div class="col-md-4">{{ form.severity.label }} {{ form.severity(class="form-select") }}</div>
+  <div class="col-md-4">{{ form.status.label }} {{ form.status(class="form-select") }}</div>
+
+  <div class="col-12">{{ form.submit(class="btn btn-primary") }}</div>
+</form>
+
+<script id="customer-data" type="application/json">
+  {{ customer_map|safe }}
+</script>
+<script>
+  (function() {
+    const data = JSON.parse(document.getElementById('customer-data').textContent);
+    const $customer = document.getElementById('customer');
+    const $site = document.getElementById('site');
+    const $loc = document.getElementById('location');
+    const $model = document.getElementById('model');
+
+    function setOptions(select, items, placeholder) {
+      const current = select.getAttribute('data-current') || "";
+      select.innerHTML = "";
+      const ph = document.createElement('option');
+      ph.value = ""; ph.textContent = placeholder || "Select...";
+      select.appendChild(ph);
+      (items || []).forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v; opt.textContent = v;
+        if (v === current) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function updateDependents() {
+      const c = $customer.value;
+      
+      if (!c) {
+        // No customer selected - disable dependent fields
+        $site.disabled = true;
+        $loc.disabled = true;
+        $model.disabled = true;
+        
+        setOptions($site, [], "Select customer first...");
+        setOptions($loc, [], "Select customer first...");
+        setOptions($model, [], "Select customer first...");
+        return;
+      }
+      
+      // Customer selected - enable dependent fields
+      $site.disabled = false;
+      $loc.disabled = false;
+      $model.disabled = false;
+      
+      // Only clear previous selections when customer changes (not on initial load)
+      if (!updateDependents.isInitialLoad) {
+        $site.setAttribute('data-current', "");
+        $loc.setAttribute('data-current', "");
+        $model.setAttribute('data-current', "");
+      }
+      updateDependents.isInitialLoad = false;
+      
+      setOptions($site,   data.sites[c] || [],    "Select site...");
+      setOptions($loc,    data.locations[c] || [],"Select location...");
+      setOptions($model,  data.models[c] || [],   "Select model...");
+      
+      // Auto-select if exactly one option available (placeholder + 1 real option = 2 total)
+      if ($site.options.length === 2) {
+        $site.selectedIndex = 1;
+      }
+      if ($loc.options.length === 2) {
+        $loc.selectedIndex = 1;
+      }
+      if ($model.options.length === 2) {
+        $model.selectedIndex = 1;
+      }
+    }
+
+    // Set initial flag for first load
+    updateDependents.isInitialLoad = true;
+
+    // preserve values if server returned errors
+    $site.setAttribute('data-current', "{{ form.site_name.data or '' }}");
+    $loc.setAttribute('data-current', "{{ form.location.data or '' }}");
+    $model.setAttribute('data-current', "{{ form.machine_model.data or '' }}");
+
+    $customer.addEventListener('change', updateDependents);
+
+    // initial load
+    updateDependents();
+  })();
+</script>
+
+<script id="fault-data" type="application/json">
+  {{ fault_map|safe }}
+</script>
+<script>
+(function() {
+  const map = JSON.parse(document.getElementById('fault-data').textContent);
+  const $code = document.getElementById('fault_code');
+  const $desc = document.getElementById('fault_desc');
+
+  function setDescOptions(text) {
+    $desc.innerHTML = "";
+    const ph = document.createElement('option');
+    ph.value = ""; ph.textContent = "Select fault description...";
+    $desc.appendChild(ph);
+    if (text) {
+      const opt = document.createElement('option');
+      opt.value = text; opt.textContent = text;
+      opt.selected = true;
+      $desc.appendChild(opt);
+    }
+  }
+
+  $code.addEventListener('change', function() {
+    const c = $code.value;
+    setDescOptions(map[c] || "");
+  });
+
+  // initial: if a code is already selected (e.g., after validation error)
+  if ($code.value && map[$code.value]) {
+    setDescOptions(map[$code.value]);
+  }
+})();
+</script>
+
+<script id="site-serial-data" type="application/json">
+  {{ site_serial_map|safe }}
+</script>
+<script>
+(function() {
+  const siteSerialMap = JSON.parse(document.getElementById('site-serial-data').textContent);
+  const $site = document.getElementById('site');
+  const $serial = document.getElementById('serial');
+  const $model = document.getElementById('model');
+
+  function setSerialOptions(serials, selectedSerial) {
+    const current = selectedSerial || $serial.getAttribute('data-current') || "";
+    $serial.innerHTML = "";
+    const ph = document.createElement('option');
+    ph.value = ""; ph.textContent = "Select serial number...";
+    $serial.appendChild(ph);
+    (serials || []).forEach(serial => {
+      const opt = document.createElement('option');
+      opt.value = serial; opt.textContent = serial;
+      if (serial === current) opt.selected = true;
+      $serial.appendChild(opt);
+    });
+  }
+
+  function updateSerialChoices() {
+    const siteName = $site.value;
+    
+    if (!siteName) {
+      // No site selected - disable serial field
+      $serial.disabled = true;
+      setSerialOptions([], "");
+      return;
+    }
+    
+    // Site selected - enable serial field
+    $serial.disabled = false;
+    
+    // Get serials for the selected site
+    const siteData = siteSerialMap[siteName] || [];
+    const serials = siteData.map(pair => pair[0]); // Extract serial numbers
+    
+    setSerialOptions(serials);
+    
+    // Auto-select if exactly one option available (placeholder + 1 real option = 2 total)
+    if ($serial.options.length === 2) {
+      $serial.selectedIndex = 1;
+      // Also auto-update model when serial is auto-selected
+      updateModelFromSerial();
+    }
+  }
+
+  function updateModelFromSerial() {
+    const siteName = $site.value;
+    const serialNumber = $serial.value;
+    
+    if (!siteName || !serialNumber) return;
+    
+    // Find the model for this site/serial combination
+    const siteData = siteSerialMap[siteName] || [];
+    const pair = siteData.find(pair => pair[0] === serialNumber);
+    
+    if (pair && pair[1]) {
+      // Set the model select to match the serial's model
+      for (let i = 0; i < $model.options.length; i++) {
+        if ($model.options[i].value === pair[1]) {
+          $model.selectedIndex = i;
+          break;
+        }
+      }
+    }
+  }
+
+  // Preserve values if server returned errors
+  $serial.setAttribute('data-current', "{{ form.machine_serial.data or '' }}");
+
+  // Event listeners
+  $site.addEventListener('change', function() {
+    // Clear serial selection when site changes (unless it's the initial load)
+    if (!updateSerialChoices.isInitialLoad) {
+      $serial.setAttribute('data-current', "");
+    }
+    updateSerialChoices.isInitialLoad = false;
+    updateSerialChoices();
+  });
+
+  $serial.addEventListener('change', updateModelFromSerial);
+
+  // Set initial flag for first load
+  updateSerialChoices.isInitialLoad = true;
+
+  // Initial load
+  updateSerialChoices();
+})();
+</script>
+{% endblock %}

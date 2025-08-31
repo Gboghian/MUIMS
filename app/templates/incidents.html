@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>All Incidents</h3>
+
+<!-- Enhanced Filter Bar -->
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-3">
+      {{ form.hidden_tag() }}
+      
+      <div class="col-md-4">
+        {{ form.q.label(class="form-label") }}
+        {{ form.q(class="form-control") }}
+      </div>
+      
+      <div class="col-md-3">
+        {{ form.customer.label(class="form-label") }}
+        {{ form.customer(class="form-select") }}
+      </div>
+      
+      <div class="col-md-2">
+        {{ form.severity.label(class="form-label") }}
+        {{ form.severity(class="form-select") }}
+      </div>
+      
+      <div class="col-md-3">
+        {{ form.status.label(class="form-label") }}
+        {{ form.status(class="form-select") }}
+      </div>
+      
+      <div class="col-md-4">
+        {{ form.date_from.label(class="form-label") }}
+        {{ form.date_from(class="form-control") }}
+      </div>
+      
+      <div class="col-md-4">
+        {{ form.date_to.label(class="form-label") }}
+        {{ form.date_to(class="form-control") }}
+      </div>
+      
+      <div class="col-md-4 d-flex align-items-end gap-2">
+        {{ form.submit(class="btn btn-primary") }}
+        <a href="{{ url_for('main.incidents') }}" class="btn btn-outline-secondary">Clear All</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Export and Actions Bar -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    {% if pagination %}
+      Showing {{ ((pagination.page - 1) * pagination.per_page) + 1 }} - {{ ((pagination.page - 1) * pagination.per_page) + pagination.items|length }} 
+      of <strong>{{ pagination.total }}</strong> incident(s)
+    {% else %}
+      <strong>{{ items|length }}</strong> incident(s) found
+    {% endif %}
+  </div>
+  <div>
+    <a href="{{ url_for('main.incidents_export', q=q, customer=customer, severity=severity, status=status, date_from=date_from, date_to=date_to) }}" 
+       class="btn btn-outline-success btn-sm">
+      <i class="bi bi-download me-1"></i>Export CSV
+    </a>
+  </div>
+</div>
+
+<table class="table table-striped">
+  <thead><tr><th>ID</th><th>Title</th><th>Customer</th><th>Site</th><th>Location</th><th>Severity</th><th>Status</th><th>Duration</th><th>Created</th><th>Update Status</th><th></th></tr></thead>
+  <tbody>
+    {% for x in items %}
+    <tr>
+      <td>{{ x.id }}</td>
+      <td>{{ x.title }}</td>
+      <td>{{ x.customer_name or 'N/A' }}</td>
+      <td>{{ x.site_name or 'N/A' }}</td>
+      <td>{{ x.location or 'N/A' }}</td>
+      <td><span class="badge {{ x.severity|sev_badge }}">{{ x.severity }}</span></td>
+      <td><span class="badge {{ x.status|status_badge }}">{{ x.status }}</span></td>
+      <td>{{ x|human_duration }}</td>
+      <td>{{ x.created_at|datetime }}</td>
+      <td>
+        <form method="post" action="{{ url_for('main.incident_status', incident_id=x.id) }}" class="d-flex gap-1">
+          <select name="status" class="form-select form-select-sm">
+            <option value="Open" {% if x.status == 'Open' %}selected{% endif %}>Open</option>
+            <option value="In Progress" {% if x.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+            <option value="Resolved" {% if x.status == 'Resolved' %}selected{% endif %}>Resolved</option>
+          </select>
+          <button type="submit" class="btn btn-sm btn-outline-success">Update</button>
+        </form>
+      </td>
+      <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.incident_detail', incident_id=x.id) }}">View</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- Pagination Controls -->
+{% if pagination.pages > 1 %}
+<nav aria-label="Incident pagination">
+  <ul class="pagination justify-content-center">
+    <!-- Previous button -->
+    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+      {% if pagination.has_prev %}
+        <a class="page-link" href="{{ url_for('main.incidents', page=pagination.prev_num, q=q, customer=customer, severity=severity, status=status, date_from=date_from, date_to=date_to) }}">
+          <span aria-hidden="true">&laquo;</span> Previous
+        </a>
+      {% else %}
+        <span class="page-link">
+          <span aria-hidden="true">&laquo;</span> Previous
+        </span>
+      {% endif %}
+    </li>
+    
+    <!-- Page info -->
+    <li class="page-item disabled">
+      <span class="page-link">
+        Page {{ pagination.page }} of {{ pagination.pages }} 
+        ({{ pagination.total }} total)
+      </span>
+    </li>
+    
+    <!-- Next button -->
+    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+      {% if pagination.has_next %}
+        <a class="page-link" href="{{ url_for('main.incidents', page=pagination.next_num, q=q, customer=customer, severity=severity, status=status, date_from=date_from, date_to=date_to) }}">
+          Next <span aria-hidden="true">&raquo;</span>
+        </a>
+      {% else %}
+        <span class="page-link">
+          Next <span aria-hidden="true">&raquo;</span>
+        </span>
+      {% endif %}
+    </li>
+  </ul>
+</nav>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>Incident #{{ i.id }} — {{ i.title }}</h3>
+<p>
+  <strong>Status:</strong> <span class="badge {{ i.status|status_badge }}">{{ i.status }}</span> | 
+  <strong>Severity:</strong> <span class="badge {{ i.severity|sev_badge }}">{{ i.severity }}</span> | 
+  <strong>Category:</strong> {{ i.category }}
+</p>
+
+<!-- Status Update Actions -->
+<div class="mb-4">
+  <h5>Actions</h5>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('main.incident_edit', id=i.id) }}" class="btn btn-primary btn-sm">
+      <i class="bi bi-pencil me-1"></i>Edit
+    </a>
+    <form method="post" action="{{ url_for('main.incident_start', id=i.id) }}" class="d-inline">
+      <button type="submit" class="btn btn-warning btn-sm" {% if i.status == 'In Progress' or i.status == 'Resolved' %}disabled{% endif %}>
+        <i class="bi bi-play-circle me-1"></i>Start Work
+      </button>
+    </form>
+    <form method="post" action="{{ url_for('main.incident_resolve', id=i.id) }}" class="d-inline">
+      <button type="submit" class="btn btn-success btn-sm" {% if i.status == 'Resolved' %}disabled{% endif %}>
+        <i class="bi bi-check-circle me-1"></i>Mark Resolved
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-6">
+    <div class="card mb-3"><div class="card-body">
+      <h5>Machine & Site</h5>
+      <p><strong>Customer:</strong> {{ i.customer_name or 'N/A' }}</p>
+      <p><strong>Site:</strong> {{ i.site_name or 'N/A' }}</p>
+      <p><strong>Location:</strong> {{ i.location or 'N/A' }}</p>
+      <p><strong>Model:</strong> {{ i.machine_model or 'N/A' }}</p>
+      <p><strong>Serial:</strong> {{ i.machine_serial or 'N/A' }}</p>
+    </div></div>
+
+    <div class="card mb-3"><div class="card-body">
+      <h5>Timing</h5>
+      <p><strong>Start:</strong> {{ i.start_time or 'N/A' }}</p>
+      <p><strong>End:</strong> {{ i.end_time or 'N/A' }}</p>
+      <p><strong>Duration:</strong> 
+        <span title="{{ i.duration_minutes or '' }} minutes">{{ i|human_duration }}</span>
+      </p>
+    </div></div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card mb-3"><div class="card-body">
+      <h5>Fault</h5>
+      <p><strong>Code:</strong> {{ i.fault_code or 'N/A' }}</p>
+      <p><strong>Fault:</strong><br>{{ (i.fault or '') | replace('\n','<br>') | safe }}</p>
+    </div></div>
+
+    <div class="card mb-3"><div class="card-body">
+      <h5>Detailed Description</h5>
+      <div class="border rounded p-2 bg-light">
+        {{ (i.description or '') | replace('\n','<br>') | safe }}
+      </div>
+    </div></div>
+  </div>
+</div>
+{% endblock %}
