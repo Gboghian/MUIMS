@@ -353,6 +353,7 @@ def new_incident():
             start_time=form.start_time.data,
             end_time=form.end_time.data,
             preventive_maintenance=form.preventive_maintenance.data,
+            parts_used=", ".join(form.parts_used.data) if form.parts_used.data else None,
             category=form.category.data,
             severity=form.severity.data,
             status=form.status.data,
@@ -370,7 +371,9 @@ def new_incident():
 @main.route("/incident/<int:incident_id>", endpoint="incident_detail")
 def incident_detail(incident_id):
     i = Incident.query.get_or_404(incident_id)
-    return render_template("incident_detail.html", i=i)
+    # Parse parts_used safely for display
+    parts_list = i.parts_used.split(", ") if i.parts_used else []
+    return render_template("incident_detail.html", i=i, parts_list=parts_list)
 
 @main.route("/incident/<int:incident_id>/status", methods=["POST"], endpoint="incident_status")
 def incident_status(incident_id):
@@ -499,6 +502,7 @@ def incident_edit(id):
         form.start_time.data = i.start_time
         form.end_time.data = i.end_time
         form.preventive_maintenance.data = i.preventive_maintenance
+        form.parts_used.data = i.parts_used.split(", ") if i.parts_used else []
         form.category.data = i.category
         form.severity.data = i.severity
         form.status.data = i.status
@@ -564,6 +568,7 @@ def incident_edit(id):
             i.start_time = form.start_time.data
             i.end_time = form.end_time.data
             i.preventive_maintenance = form.preventive_maintenance.data
+            i.parts_used = ", ".join(form.parts_used.data) if form.parts_used.data else None
             i.category = form.category.data
             i.severity = form.severity.data
             i.status = form.status.data
@@ -638,11 +643,16 @@ def incidents_export():
     # Write header row
     writer.writerow([
         'ID', 'Title', 'Customer', 'Severity', 'Status', 'Created At', 
-        'Site', 'Model', 'Serial', 'Fault Code'
+        'Site', 'Model', 'Serial', 'Fault Code', 'Duration Minutes', 'Parts Used'
     ])
     
     # Write data rows
     for incident in incidents:
+        # Calculate duration_minutes
+        duration_minutes = ''
+        if incident.start_time and incident.end_time:
+            duration_minutes = int((incident.end_time - incident.start_time).total_seconds() // 60)
+        
         writer.writerow([
             incident.id,
             incident.title or '',
@@ -653,7 +663,9 @@ def incidents_export():
             incident.site_name or '',
             incident.machine_model or '',
             incident.machine_serial or '',
-            incident.fault_code or ''
+            incident.fault_code or '',
+            duration_minutes,
+            incident.parts_used or ''
         ])
     
     # Create response

@@ -19,6 +19,7 @@ class Incident(db.Model):
     start_time = db.Column(db.DateTime(timezone=True))            # "Start Time"
     end_time = db.Column(db.DateTime(timezone=True))              # "End Time"
     preventive_maintenance = db.Column(db.Boolean, default=False)
+    parts_used = db.Column(db.Text, nullable=True)
 
     # classification
     category = db.Column(db.String(50), default="mechanical")

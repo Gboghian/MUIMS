@@ -56,6 +56,19 @@
     </div></div>
 
     <div class="card mb-3"><div class="card-body">
+      <h5>Parts Used</h5>
+      <div>
+        {% if parts_list %}
+          {% for part in parts_list %}
+            <span class="badge bg-secondary me-1 mb-1">{{ part }}</span>
+          {% endfor %}
+        {% else %}
+          <span class="text-muted">N/A</span>
+        {% endif %}
+      </div>
+    </div></div>
+
+    <div class="card mb-3"><div class="card-body">
       <h5>Detailed Description</h5>
       <div class="border rounded p-2 bg-light">
         {{ (i.description or '') | replace('\n','<br>') | safe }}
