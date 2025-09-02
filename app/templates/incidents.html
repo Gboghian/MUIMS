@@ -65,7 +65,7 @@
 </div>
 
 <table class="table table-striped">
-  <thead><tr><th>ID</th><th>Title</th><th>Customer</th><th>Site</th><th>Location</th><th>Severity</th><th>Status</th><th>Duration</th><th>Created</th><th>Update Status</th><th></th></tr></thead>
+  <thead><tr><th>ID</th><th>Title</th><th>Customer</th><th>Site</th><th>Location</th><th>Severity</th><th>Status</th><th>Parts</th><th>Duration</th><th>Created</th><th>Update Status</th><th></th></tr></thead>
   <tbody>
     {% for x in items %}
     <tr>
@@ -76,6 +76,13 @@
       <td>{{ x.location or 'N/A' }}</td>
       <td><span class="badge {{ x.severity|sev_badge }}">{{ x.severity }}</span></td>
       <td><span class="badge {{ x.status|status_badge }}">{{ x.status }}</span></td>
+      <td>
+        {% if x.parts %}
+          {{ x.parts | map(attribute='name') | join(', ') }}
+        {% else %}
+          <span class="text-muted">—</span>
+        {% endif %}
+      </td>
       <td>{{ x|human_duration }}</td>
       <td>{{ x.created_at|datetime }}</td>
       <td>

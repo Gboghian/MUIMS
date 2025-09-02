@@ -156,7 +156,8 @@ class IncidentForm(FlaskForm):
 
     fault_code = SelectField("Fault Code", choices=[], validators=[Optional()])
     fault = SelectField("Fault Description", choices=[], validators=[Optional()])
-    parts_used = SelectMultipleField("Parts Used", choices=PART_CHOICES)
+    parts_used = SelectMultipleField('Parts Used', choices=[], coerce=str, validate_choice=False, render_kw={"id": "parts_used"})
+    parts_other = StringField('Other Parts (optional)')
 
     start_time = DateTimeLocalField("Fault Start Time", format="%Y-%m-%dT%H:%M", validators=[Optional()], default=get_rounded_now)
     end_time   = DateTimeLocalField("Fault End Time",   format="%Y-%m-%dT%H:%M", validators=[Optional()])

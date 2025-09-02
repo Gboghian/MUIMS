@@ -1,6 +1,19 @@
 from datetime import datetime, timezone
+from datetime import datetime as utcnow
 from sqlalchemy.sql import func
 from . import db
+
+# Association table for many-to-many relationship between incidents and parts
+incident_parts = db.Table('incident_parts',
+    db.Column('incident_id', db.Integer, db.ForeignKey('incident.id', ondelete='CASCADE'), nullable=False),
+    db.Column('part_id', db.Integer, db.ForeignKey('part.id', ondelete='CASCADE'), nullable=False),
+    db.UniqueConstraint('incident_id', 'part_id')
+)
+
+class Part(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=utcnow.utcnow, nullable=False)
 
 class Incident(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -27,6 +40,9 @@ class Incident(db.Model):
     status = db.Column(db.String(20), default="Open")
 
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    parts = db.relationship("Part", secondary=incident_parts, backref=db.backref("incidents", lazy="dynamic"), lazy="selectin")
 
     @property
     def duration_minutes(self):

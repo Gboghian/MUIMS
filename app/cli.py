@@ -1,5 +1,5 @@
 from . import db
-from .models import Incident
+from .models import Incident, Part
 from datetime import datetime, timedelta
 
 def register_cli(app):
@@ -113,3 +113,23 @@ def register_cli(app):
         
         db.session.commit()
         print(f"Seeded {len(incidents)} demo incidents with mixed severities and statuses.")
+
+    @app.cli.command("seed-parts")
+    def seed_parts():
+        import os
+        path = os.path.join(os.path.dirname(__file__), "data", "parts.txt")
+        if not os.path.exists(path):
+            print("No parts file found:", path)
+            return
+        added = 0
+        with open(path, "r", encoding="utf-8") as f:
+            for raw in f:
+                name = raw.strip()
+                if not name:
+                    continue
+                exists = Part.query.filter(db.func.lower(Part.name) == name.lower()).first()
+                if not exists:
+                    db.session.add(Part(name=name))
+                    added += 1
+        db.session.commit()
+        print(f"Seeded {added} parts.")

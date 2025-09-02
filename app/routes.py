@@ -2,9 +2,24 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 import json
 import csv
 import io
+from datetime import timedelta
 from . import db
-from .models import Incident
+from .models import Incident, Part
 from .forms import IncidentForm, FilterForm
+# import the list of part names
+from app.parts_data import PARTS  # a python list like ["Belt", "Motor", ...]
+
+def _fmt_dt(dt):
+    """Return 'YYYY-MM-DD HH:MM' or empty string if None."""
+    return dt.strftime("%Y-%m-%d %H:%M") if dt else ""
+
+def _fmt_duration(start, end):
+    """Return 'Xh Ym' if both present, else 'N/A'."""
+    if start and end:
+        mins = int((end - start).total_seconds() // 60)
+        h, m = divmod(mins, 60)
+        return f"{h}h {m}m" if h else f"{m}m"
+    return "N/A"
 
 main = Blueprint("main", __name__)
 
@@ -249,6 +264,14 @@ def new_incident():
     # Fault description choices mirror the map values
     form.fault.choices = [("", "Select fault description...")] + [(v, v) for v in sorted(set(FAULT_MAP.values()))]
 
+    # ensure choices are always present
+    part_choices = [(p, p) for p in PARTS] if PARTS else []
+    form.parts_used.choices = part_choices
+
+    # Fallback: if no parts loaded, show a hint choice so the field is usable
+    if not form.parts_used.choices:
+        form.parts_used.choices = [("","-- No parts list loaded: use 'Other Parts' field --")]
+
     # Ensure machine_model choices are at least present
     # We'll restrict via server guard and also set the final value from the mapping
     all_models = sorted({m for pairs in SITE_SERIAL_MAP.values() for (_s, m) in pairs})
@@ -281,6 +304,10 @@ def new_incident():
         # else keep the generic list for GET or empty code
 
     if form.validate_on_submit():
+        # Ensure parts choices are available for error paths
+        parts = Part.query.order_by(Part.name.asc()).all()
+        form.parts_used.choices = [(p.id, p.name) for p in parts]
+        
         c = form.customer_name.data
         
         # (optional) extra guardrails for customer mapping
@@ -339,6 +366,19 @@ def new_incident():
             mapped_model = model_for(site, serial)
             form.machine_model.data = mapped_model
         
+        # Build parts_used string from selected parts and other parts
+        selected = [p for p in (form.parts_used.data or []) if p and p != ""]  # guard the hint value
+        parts_list = []
+        
+        if selected:
+            selected_parts = Part.query.filter(Part.id.in_(selected)).all()
+            parts_list.extend([p.name for p in selected_parts])
+        
+        if form.parts_other.data and form.parts_other.data.strip():
+            # Add other parts (split by comma and clean up)
+            other_parts = [p.strip() for p in form.parts_other.data.split(',') if p.strip()]
+            parts_list.extend(other_parts)
+        
         # If validation passes, create the incident
         i = Incident(
             title=form.title.data,
@@ -353,11 +393,16 @@ def new_incident():
             start_time=form.start_time.data,
             end_time=form.end_time.data,
             preventive_maintenance=form.preventive_maintenance.data,
-            parts_used=", ".join(form.parts_used.data) if form.parts_used.data else None,
+            parts_used=", ".join(parts_list) if parts_list else None,
             category=form.category.data,
             severity=form.severity.data,
             status=form.status.data,
         )
+        
+        # Map selected part IDs to Part objects
+        if selected:
+            i.parts = Part.query.filter(Part.id.in_(selected)).all()
+        
         db.session.add(i)
         db.session.commit()
         flash("✅ Incident submitted successfully.", "success")
@@ -488,6 +533,10 @@ def incident_edit(id):
     form.fault_code.choices = [('', 'Select fault code...')] + [(code, code) for code in FAULT_MAP.keys()]
     form.fault.choices = [('', 'Select fault description...')]
 
+    # Load parts for the multi-select
+    parts = Part.query.order_by(Part.name.asc()).all()
+    form.parts_used.choices = [(p.id, p.name) for p in parts]
+
     # Pre-populate form with existing data on GET request
     if request.method == 'GET':
         form.title.data = i.title
@@ -502,7 +551,16 @@ def incident_edit(id):
         form.start_time.data = i.start_time
         form.end_time.data = i.end_time
         form.preventive_maintenance.data = i.preventive_maintenance
-        form.parts_used.data = i.parts_used.split(", ") if i.parts_used else []
+        form.parts_used.data = [p.id for p in i.parts]
+        
+        # Extract other parts from legacy parts_used field
+        if i.parts_used:
+            parts_in_legacy = set(i.parts_used.split(", "))
+            parts_in_relation = {p.name for p in i.parts}
+            other_parts = parts_in_legacy - parts_in_relation
+            if other_parts:
+                form.parts_other.data = ", ".join(sorted(other_parts))
+        
         form.category.data = i.category
         form.severity.data = i.severity
         form.status.data = i.status
@@ -568,10 +626,30 @@ def incident_edit(id):
             i.start_time = form.start_time.data
             i.end_time = form.end_time.data
             i.preventive_maintenance = form.preventive_maintenance.data
-            i.parts_used = ", ".join(form.parts_used.data) if form.parts_used.data else None
+            
+            # Build parts_used string from selected parts and other parts
+            selected = [p for p in (form.parts_used.data or []) if p and p != ""]  # guard the hint value
+            parts_list = []
+            
+            if selected:
+                selected_parts = Part.query.filter(Part.id.in_(selected)).all()
+                parts_list.extend([p.name for p in selected_parts])
+            
+            if form.parts_other.data and form.parts_other.data.strip():
+                # Add other parts (split by comma and clean up)
+                other_parts = [p.strip() for p in form.parts_other.data.split(',') if p.strip()]
+                parts_list.extend(other_parts)
+            
+            i.parts_used = ", ".join(parts_list) if parts_list else None
             i.category = form.category.data
             i.severity = form.severity.data
             i.status = form.status.data
+
+            # Update parts relationship
+            if selected:
+                i.parts = Part.query.filter(Part.id.in_(selected)).all()
+            else:
+                i.parts = []
 
             db.session.commit()
             flash(f"✅ Incident #{i.id} has been updated successfully.", "success")
@@ -641,31 +719,19 @@ def incidents_export():
     writer = csv.writer(output)
     
     # Write header row
-    writer.writerow([
-        'ID', 'Title', 'Customer', 'Severity', 'Status', 'Created At', 
-        'Site', 'Model', 'Serial', 'Fault Code', 'Duration Minutes', 'Parts Used'
-    ])
+    writer.writerow(["ID","Title","Customer","Severity","Status","Created","Duration","Parts Used"])
     
     # Write data rows
-    for incident in incidents:
-        # Calculate duration_minutes
-        duration_minutes = ''
-        if incident.start_time and incident.end_time:
-            duration_minutes = int((incident.end_time - incident.start_time).total_seconds() // 60)
-        
+    for i in incidents:
         writer.writerow([
-            incident.id,
-            incident.title or '',
-            incident.customer_name or '',
-            incident.severity or '',
-            incident.status or '',
-            incident.created_at.strftime('%Y-%m-%d %H:%M:%S') if incident.created_at else '',
-            incident.site_name or '',
-            incident.machine_model or '',
-            incident.machine_serial or '',
-            incident.fault_code or '',
-            duration_minutes,
-            incident.parts_used or ''
+            i.id,
+            i.title or "",
+            i.customer_name or "",
+            i.severity or "",
+            i.status or "",
+            _fmt_dt(i.created_at),
+            _fmt_duration(i.start_time, i.end_time),
+            (", ".join(i.parts_used) if isinstance(i.parts_used, (list, tuple)) else (i.parts_used or "")),
         ])
     
     # Create response
